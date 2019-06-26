@@ -3,21 +3,29 @@ const Conversations = require('./ConversationManager.js');
 
 module.exports = function(router) {
 
+    function _d(data) {
+        if (typeof data === "object") {
+            data = JSON.stringify(data);
+        }
+        return data;
+    }
+
+    function _conversation(conversation, newMessage) {
+        const sender = conversation.participants.filter(it => it === newMessage.sender.id)[0];
+
+        return _d({
+            type: "DIALOG",
+            conversationId: conversation.conversationId,
+            content: {
+                text: newMessage.text,
+            },
+            sender,
+        });
+    }
+
     const messageActions = {
-        // "CONVERSATION": ({ me, other }) => {
-        //     const conversation = Conversations.initConversation([me, other]);
-        //     console.log("CONV:START", conversation);
-        //     send(conversation.participants, conversation);
-        // },
         "DIALOG": ({ conversationId, message }, ws, ctx) => {
-
-            console.log("ctx!", ctx);
-
-            ws.send("ack");
-
-            // const conversation = Conversations.dialog(conversationId, socketId, message);
-            // console.log("CONV:DIALOG", conversation);
-            // send(conversation.participants, conversation);
+            const conversation = Conversations.dialog(conversationId, ctx.params.accountId, message);
         }
     };
 
@@ -32,7 +40,19 @@ module.exports = function(router) {
         };
     };
 
-    router.get("/:accountId/ws", ({ websocket: ws, ctx }) => {
+    router.get("/conversation/:accountId", ({ websocket: ws, ...ctx }) => {
+        const conversation = Conversations.findConversationByAccountId(ctx.params.accountId);
+        
+        console.log("new connection!", conversation);
+
+        Conversations.addListener(conversation.conversationId, (conversation, newMessage) => {
+            const msg = _conversation(conversation, newMessage);
+            console.log("final", msg);
+            ws.send(msg);
+        });
+
+        ws.send(_d(conversation));
+
         ws.on('message', messageHandlerFactory(ws, ctx));
     });
 

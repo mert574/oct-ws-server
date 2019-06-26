@@ -5,9 +5,9 @@ class ConversationManager {
     };
 
     initConversation(participants) {
-        const conversationId = participants.reduce((acc, curr) => acc + curr, "");
+        const conversationId = participants.reduce((acc, curr) => acc + "-" + curr, "");
 
-        if (this.conversations.includes(conversationId)) {
+        if (this.conversations.hasOwnProperty('conversationId')) {
             console.warn("conversation already exists!");
             return this.conversations[conversationId];
         }
@@ -23,21 +23,22 @@ class ConversationManager {
         return conversation;
     }
 
-    dialog(conversationId, sender, message) {
-        if (!this.conversations.includes(conversationId)) {
+    dialog(conversationId, sender, text) {
+        if (!this.conversations.hasOwnProperty(conversationId)) {
             console.warn("conversation not found!");
             return;
         }
 
         const conversation = this.conversations[conversationId];
-
-        conversation.messages.push({
-            message,
+        const newMessage = {
+            text,
+            sender,
             sentOn: new Date(),
-            sentBy: sender,
-        });
+        };
 
-        this.$notifyListeners(conversation);
+        conversation.messages.push(newMessage);
+
+        this.$notifyListeners(conversation, newMessage);
 
         return conversation;
     }
@@ -50,10 +51,20 @@ class ConversationManager {
         this.listeners.push({ conversationId, callback });
     }
 
-    $notifyListeners(conversation) {
+    findConversationByAccountId(accountId) {
+        for(const conversationId in this.conversations) {
+            const conversation = this.conversations[conversationId];
+            if (conversation.participants.filter(it => it === accountId).length) {
+                return conversation;
+            }
+        }
+        return {};
+    }
+
+    $notifyListeners(conversation, newMessage) {
         this.listeners
             .filter(({ conversationId }) => conversation.conversationId === conversationId)
-            .forEach(({ callback }) => callback(conversation));
+            .forEach(({ callback }) => callback(conversation, newMessage));
     }
 }
 

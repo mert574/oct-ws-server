@@ -1,15 +1,13 @@
+const Conversations = require('./ConversationManager.js');
+
+const agentId = "agent1";
+
 module.exports = function(router) {
-    
     router.get("/:accountId/init", (ctx) => {
-        ctx.body = `Hello, ${ctx.params.accountId}!`;
-    });
+        const conversation = Conversations.initConversation([agentId, ctx.params.accountId]);
 
-    router.get("/init", (ctx) => {
-        ctx.body = `Helloasdd`;
-    });
-
-    router.get("*", (ctx) => {
-        ctx.body = `404 bro`;
+        ctx.status = 200;
+        ctx.body = conversation;
     });
 
     return router.routes();
