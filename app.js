@@ -1,17 +1,15 @@
-const http = require('http');
-const server = http.createServer();
-
 const Koa = require('koa');
-const app = new Koa({ server });
+const websockify = require('koa-websocket');
+const app = websockify(new Koa());
 
 const Router = require('koa-router');
-const router = new Router();
-const routes = require('./routes.js');
+const RestRouter = new Router();
+const restRoutes = require('./routes.js');
 
-const WebSocket = require('ws');
-const ws = new WebSocket.Server({ server });
-const wsHandler = require('./wsHandler.js')(ws);
+const WebsocketRouter = new Router();
+const websocketRoutes = require('./wsHandler.js');
 
-ws.on('connection', wsHandler);
-app.use(routes(router));
-server.listen(3000);
+app.use(restRoutes(RestRouter));
+app.ws.use(websocketRoutes(WebsocketRouter));
+
+app.listen(3000);

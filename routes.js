@@ -1,7 +1,15 @@
 module.exports = function(router) {
     
-    router.get("/:username", (ctx) => {
-        ctx.body = `Hello, ${ctx.params.username}!`;
+    router.get("/:accountId/init", (ctx) => {
+        ctx.body = `Hello, ${ctx.params.accountId}!`;
+    });
+
+    router.get("/init", (ctx) => {
+        ctx.body = `Helloasdd`;
+    });
+
+    router.get("*", (ctx) => {
+        ctx.body = `404 bro`;
     });
 
     return router.routes();

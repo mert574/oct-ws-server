@@ -12,6 +12,7 @@
   "dependencies": {
     "koa": "^2.7.0",
     "koa-router": "^7.4.0",
+    "koa-websocket": "^5.0.1",
     "ws": "^7.0.1"
   },
   "devDependencies": {
