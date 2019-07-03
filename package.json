@@ -10,7 +10,9 @@
     "start": "npx nodemon app.js"
   },
   "dependencies": {
+    "@koa/cors": "2",
     "koa": "^2.7.0",
+    "koa-bodyparser": "^4.2.1",
     "koa-router": "^7.4.0",
     "koa-websocket": "^5.0.1",
     "uuid": "^3.3.2",
