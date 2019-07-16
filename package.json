@@ -1,0 +1,24 @@
+{
+  "name": "oct-ws-server",
+  "version": "1.0.0",
+  "main": "app.js",
+  "repository": "git@github.com:mert574/oct-ws-server.git",
+  "author": "Mert <mrty574@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "npx nodemon app.js"
+  },
+  "dependencies": {
+    "@koa/cors": "2",
+    "koa": "^2.7.0",
+    "koa-bodyparser": "^4.2.1",
+    "koa-router": "^7.4.0",
+    "koa-websocket": "^5.0.1",
+    "uuid": "^3.3.2",
+    "ws": "^7.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^1.19.1"
+  }
+}
