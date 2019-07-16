@@ -18,4 +18,4 @@ app.use(bodyParser());
 app.use(restRoutes(RestRouter));
 app.ws.use(websocketRoutes(WebsocketRouter));
 
-app.listen(3000);
+app.listen(8080);

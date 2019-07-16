@@ -1,26 +1,11 @@
 const Conversations = require('./ConversationManager.js');
+const sleep = (waitTimeInMs) => new Promise(resolve => setTimeout(resolve, waitTimeInMs));
+const { send, _dialog, _message } = require("./util.js");
 
 module.exports = function(router) {
-
-    function _d(data) {
-        if (typeof data === "object") {
-            data = JSON.stringify(data);
-        }
-        return data;
-    }
-
-    function _dialog(conversation, newMessage) {
-        return _d({
-            type: "DIALOG",
-            conversationId: conversation.conversationId,
-            content: newMessage.content,
-            sender: newMessage.sender,
-        });
-    }
-
     const messageActions = {
         "DIALOG": ({ conversationId, content }, ws, ctx) => {
-            Conversations.dialog(conversationId, ctx.params.accountId, content);
+            Conversations.message("DIALOG", conversationId, ctx.params.accountId, content);
         }
     };
 
@@ -28,50 +13,52 @@ module.exports = function(router) {
         return (message) => {
             try {
                 const { type, ...payload } = JSON.parse(message);
-                messageActions[type](payload, ws, ctx);
+                try {
+                    messageActions[type](payload, ws, ctx);
+                } catch(e) {
+                    console.warn("Couldn't act to the message!", type, payload, "\n\n", e);    
+                }
             } catch(e) {
-                console.warn("Couldn't act to the message!", message, e);
+                console.warn("Couldn't parse the message!", message, "\n\n", e);
             }
         };
     };
 
-    router.get("/conversation/agent/:accountId", ({websocket: ws, ...ctx}) => {
-        const conversations = Conversations.findAgentConversationsByAccountId(ctx.params.accountId);
+    router.get("/ws/messaging/:accountId", ({websocket: ws, ...ctx}) => {
+        const accountId = ctx.params.accountId;
+        const conversations = Conversations.findConversationsByAccountId(accountId);
+        const isAgent = accountId.endsWith("agent");
 
         conversations.forEach((conversation) => {
-            Conversations.addListener(conversation.conversationId, (conversation, newMessage) => {
-                const msg = _dialog(conversation, newMessage);
-                ws.send(msg);
+            Conversations.addListener(accountId, conversation.conversationId, (conversation, message) => {
+                send(ws, _message(conversation.conversationId, message));
             });
 
-            ws.send(_d({ type: "CONVERSATION", ...conversation }));
+            send(ws, { type: "CONVERSATION", ...conversation });
         });
 
-        Conversations.setAgentHandler(ctx.params.accountId, ws);
+        if (isAgent) {
+            Conversations.setAgentHandler(accountId, ws);
+        }
 
         ws.on('message', messageHandlerFactory(ws, ctx));
 
         ws.on('close', () => {
-            Conversations.removeAgentHandler(ctx.params.accountId);
-        })
-    });
+            if (isAgent) {
+                Conversations.removeAgentHandler(accountId);
+            }
 
-    router.get("/conversation/:accountId", ({ websocket: ws, ...ctx }) => {
-        const conversation = Conversations.findConversationByAccountId(ctx.params.accountId);
-        
-        console.log("new connection!", conversation);
+            Conversations.removeListeners(accountId);
 
-        if (conversation.conversationId) {
-            Conversations.addListener(conversation.conversationId, (conversation, newMessage) => {
-                const msg = _dialog(conversation, newMessage);
-                ws.send(msg);
+            conversations.forEach(({ conversationId }) => {
+
+                if (!isAgent) {
+                    Conversations.message("EVENT", conversationId, accountId, { text: "User left the conversation" });
+                    Conversations.setConversationStatus(conversationId, "PASSIVE");
+                }
             });
-
-            ws.send(_d({ type: "CONVERSATION", ...conversation }));
-        }
-
-        ws.on('message', messageHandlerFactory(ws, ctx));
+        });
     });
-
+    
     return router.routes();
 };

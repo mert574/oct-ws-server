@@ -1,18 +1,4 @@
-function _d(data) {
-    if (typeof data === "object") {
-        data = JSON.stringify(data);
-    }
-    return data;
-}
-
-function _dialog(conversation, newMessage) {
-    return _d({
-        type: "DIALOG",
-        conversationId: conversation.conversationId,
-        content: newMessage.content,
-        sender: newMessage.sender,
-    });
-}
+const { send, _dialog, _message } = require("./util.js");
 
 class ConversationManager {
     constructor() {
@@ -23,6 +9,8 @@ class ConversationManager {
 
     initConversation(participants, guestName) {
         const conversationId = participants.reduce((acc, curr) => acc + "-" + curr, "");
+        const agentAccountId = participants[0];
+        const guestAccountId = participants[1];
 
         if (this.conversations.hasOwnProperty('conversationId')) {
             console.warn("conversation already exists!");
@@ -33,24 +21,24 @@ class ConversationManager {
             conversationId,
             participants,
             messages: [],
-            agent: { accountId: participants[0], name: participants[0] },
-            guest: { accountId: participants[1], name: guestName },
+            agent: { accountId: agentAccountId, name: "Agent Smith" },
+            guest: { accountId: guestAccountId, name: guestName },
             lastMessage: null,
             status: "ACTIVE",
+            channel: "OCTOPUS",
         };
 
         this.conversations[conversationId] = conversation;
 
-        const agentHandler = this.agents.filter(agent => agent.accountId === participants[0])[0];
+        this.agents.forEach(agent => {
+            if (agent.ws.readyState === 1) {
+                send(agent.ws, _message(conversation.conversationId, { type: "CONVERSATION", ...conversation }));
 
-        if (agentHandler && agentHandler.ws.readyState === 1) {
-            agentHandler.ws.send(JSON.stringify({ type: "CONVERSATION", ...conversation }));
-
-            this.addListener(conversationId, (conversation, newMessage) => {
-                const msg = _dialog(conversation, newMessage);
-                agentHandler.ws.send(msg);
-            });
-        }
+                this.addListener(agentAccountId, conversationId, (conversation, message) => {
+                    send(agent.ws, _message(conversation.conversationId, message));
+                });
+            }
+        });
 
         return conversation;
     }
@@ -61,6 +49,17 @@ class ConversationManager {
         if (!isExists) {
             this.agents.push({ accountId, ws });
         }
+    }
+
+    setConversationStatus(conversationId, status) {
+        if (!["ACTIVE", "PASSIVE"].includes(status)) {
+            throw new Error("Not allowed status! " + status);    
+        }
+        
+        const conversation = this.conversations[conversationId];
+        conversation.status = status;
+
+        this.$notifyListeners(conversation, { type: "CONVERSATION", ...conversation });
     }
 
     removeAgentHandler(accountId) {
@@ -77,35 +76,46 @@ class ConversationManager {
         }
     }
 
-    dialog(conversationId, senderAccountId, content) {
+    message(type, conversationId, senderAccountId, content) {
         if (!this.conversations.hasOwnProperty(conversationId)) {
             console.warn("conversation not found!");
             return;
         }
-
-        const conversation = this.conversations[conversationId];
-
-        const newMessage = {
+        
+        const message = {
+            type,
             content,
-            sender: {
-                accountId: senderAccountId,
-            },
-            sentOn: new Date(),
+            sender: { accountId: senderAccountId },
+            sentOn: Date.now(),
         };
 
-        conversation.messages.push(newMessage);
+        const conversation = this.conversations[conversationId];
+        conversation.messages.push(message);
 
-        this.$notifyListeners(conversation, newMessage);
+        this.$notifyListeners(conversation, message);
 
         return conversation;
     }
 
-    addListener(conversationId, callback) {
+    addListener(accountId, conversationId, callback) {
         if (typeof callback !== "function") {
             throw new Error("Callback must be a function!");
         }
 
-        this.listeners.push({ conversationId, callback });
+        this.listeners.push({ accountId, conversationId, callback });
+    }
+
+    removeListener(accountId, conversationId) {
+        if (typeof callback !== "function") {
+            throw new Error("Callback must be a function!");
+        }
+
+        this.listeners = this.listeners
+            .filter(it => it.accountId !== accountId && it.conversationId === conversationId);
+    }
+
+    removeListeners(accountId) {
+        this.listeners = this.listeners.filter(it => it.accountId !== accountId);
     }
 
     findConversationByAccountId(accountId) {
@@ -118,7 +128,7 @@ class ConversationManager {
         return {};
     }
 
-    findAgentConversationsByAccountId(accountId) {
+    findConversationsByAccountId(accountId) {
         const list = [];
         for(const conversationId in this.conversations) {
             const conversation = this.conversations[conversationId];
@@ -129,10 +139,10 @@ class ConversationManager {
         return list;
     }
 
-    $notifyListeners(conversation, newMessage) {
+    $notifyListeners(conversation, payload) {
         this.listeners
             .filter(({ conversationId }) => conversation.conversationId === conversationId)
-            .forEach(({ callback }) => callback(conversation, newMessage));
+            .forEach(({ callback }) => callback(conversation, payload));
     }
 }
 
